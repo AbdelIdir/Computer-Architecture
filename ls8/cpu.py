@@ -2,7 +2,6 @@
 
 import sys
 
-
 class CPU:
     """Main CPU class."""
 
