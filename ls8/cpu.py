@@ -143,18 +143,3 @@ class CPU:
     def RET(self, *_):
         self.pc = self.ram_read(self.reg[SP])
         self.reg[SP] += 1
-
-    # def JMP(self, reg_num, _):
-    #     self.pc = self.reg[reg_num]
-
-    # def JNE(self, reg_num, _):
-    #     if self.fl & 1 == 0:
-    #         self.JMP(reg_num, _)
-    #     else:
-    #         self.pc += 2
-
-    # def JEQ(self, reg_num, _):
-    #     if self.fl & 1:
-    #         self.JMP(reg_num, _)
-    #     else:
-    #         self.pc += 2
