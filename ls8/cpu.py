@@ -39,9 +39,7 @@ class CPU:
             CALL: self.CALL,
             RET: self.RET,
             ADD: self.ALU_ADD
-            # JMP: self.JMP,
-            # JNE: self.JNE,
-            # JEQ: self.JEQ
+          
         }
 
     def ram_read(self, mar):
