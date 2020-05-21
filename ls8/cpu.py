@@ -1,7 +1,22 @@
 """CPU functionality."""
 
 import sys
-import re
+
+ADD = 0b10100000
+
+MUL = 0b10100010
+LDI = 0b10000010
+PRN = 0b01000111
+HLT = 0b00000001
+PUSH = 0b01000101
+POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
+JMP = 0b01010100
+JNE = 0b01010110
+JEQ = 0b01010101
+
+SP = 7
 
 
 class CPU:
@@ -9,202 +24,57 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
-        self.reg = [0, 0, 0, 0, 0, 0, 0, 0xF4]
         self.ram = [0] * 256
+        self.reg = [0] * 8
+        self.reg[SP] = 0xF4
         self.pc = 0
-        self.halted = False
-        self.instructions = {
-            0b10000010: self.ldi,
-            0b01000111: self.prn,
-            0b00000001: self.hlt,
-            0b10100010: self.mult,
-            0b01000110: self.pop,
-            0b01000101: self.push,
-            0b00011000: self.mult2print,
-            0b00010001: self.ret,
-            0b01010000: self.call,
-            0b10100000: self.add,
-            0b10100111: self._cmp,
-            0b01010100: self.jmp,
-            0b01010101: self.jeq,
-            0b01010110: self.jne
+        self.fl = 0
+        self.branch_table = {
+            HLT: self.HLT,
+            LDI: self.LDI,
+            PRN: self.PRN,
+            MUL: self.ALU_MUL,
+            PUSH: self.PUSH,
+            POP: self.POP,
+            CALL: self.CALL,
+            RET: self.RET,
+            ADD: self.ALU_ADD
+            # JMP: self.JMP,
+            # JNE: self.JNE,
+            # JEQ: self.JEQ
         }
-        self.fl = [0] * 8
 
-        #Known indices for register
-        self.sp = 7
-        #Known indices for flags
-        self.equal = 7
-        self.greater_than = 6
-        self.less_than = 5
+    def ram_read(self, mar):
+        return self.ram[mar]
 
-    def _cmp(self):
-        self.alu("CMP", self.ram[self.pc + 1], self.ram[self.pc + 2])
+    def ram_write(self, mdr, mar):
+        self.ram[mar] = mdr
 
-    def add(self):
-        self.alu("ADD", self.ram[self.pc + 1], self.ram[self.pc + 2])
-
-    def jeq(self):
-        register_num = self.ram[self.pc + 1]
-
-        #if equals go to this register number
-        if self.fl[self.equal] == 1:
-            self.pc = self.reg[register_num]
-        else:
-            self.pc += 2
-
-    def jne(self):
-        register_num = self.ram[self.pc + 1]
-
-        #if equals go to this register number
-        if self.fl[self.equal] == 0:
-            self.pc = self.reg[register_num]
-        else:
-            self.pc += 2
-
-    def jmp(self):
-        register_num = self.ram[self.pc + 1]
-
-        self.pc = self.reg[register_num]
-
-    def call(self):
-        #take the next item - which is a register number -
-        next_instruction_register = self.ram[self.pc + 1]
-        next_instruction = self.reg[next_instruction_register]
-        if next_instruction in self.instructions:
-            #Find the place (pc) to come back to - store in it in the stack
-
-            #Now self.pc is the next instruction - setting it at the top of stack
-            self.ram[self.reg[self.sp]] = self.pc + 2
-
-            #update the position for the function (pc)
-            #moving the program counter to the the function in the ram
-            self.pc = next_instruction
-
-            #Calling the function
-            self.instructions[next_instruction]()
-        else:
-            print("Incorrect function!")
-
-    def mult2print(self):
-        op = self.ram[self.pc]
-        first_reg = self.ram[self.pc + 1]
-        second_reg = self.ram[self.pc + 2]
-        if op in self.instructions:
-            self.instructions[op]()
-
-        self.pc += 3
-
-        self.prn()
-
-        self.ret()
-
-    def ret(self):
-        #get the last pc from the stack by popping
-        #But pop needs to think that the next pc is the register number
-
-        self.pc = self.ram[self.reg[self.sp]]
-        #set the new pc
-
-    def push(self):
-        register_num = self.ram[self.pc + 1]
-        #making it so sp and pc never cross paths
-        if self.reg[self.sp] > 0 and self.reg[self.sp] > self.pc + 3:
-            self.reg[self.sp] -= 1
-            self.ram[self.reg[self.sp]] = self.reg[register_num]
-            self.pc += 2
-        else:
-            print("Cannot push anymore! Start popping!")
-
-    def pop(self):
-        register_num = self.ram[self.pc + 1]
-        if self.sp < 256:
-            value = self.ram[self.reg[self.sp]]
-            self.reg[register_num] = value
-            self.reg[self.sp] += 1
-            self.pc += 2
-        else:
-            print("Nothing in the stack!")
-
-    def mult(self):
-        #multiply binary numbers and store results into first register
-        first_register_num = self.ram[self.pc + 1]
-        second_register_num = self.ram[self.pc + 2]
-
-        first_num = self.reg[first_register_num]
-        second_num = self.reg[second_register_num]
-
-        product = first_num * second_num
-
-        self.reg[first_register_num] = product
-
-        self.pc += 3
-
-    def ldi(self):
-        value = self.ram[self.pc + 2]
-        register_num = self.ram[self.pc + 1]
-
-        self.reg[register_num] = value
-        self.pc += 3
-
-    def prn(self):
-        register_num = self.ram[self.pc + 1]
-        print(self.reg[register_num])
-        self.pc += 2
-
-    def hlt(self):
-        self.halted = True
-        self.pc += 1
+    def load(self, program):
+        """Load a program into memory."""
+        try:
+            address = 0
+            with open(program) as file:
+                for line in file:
+                    line = line.split('#')[0]
+                    line = line.strip()
+                    if line == '':
+                        continue
+                    instruction = int(line, 2)
+                    self.ram_write(instruction, address)
+                    address += 1
+        except FileNotFoundError:
+            print('ERROR: No valid file name')
+            sys.exit(2)
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-            self.pc += 3
-        elif op == "CMP":
-            #Reset all flags
-            self.fl[-3:] = [0, 0, 0]
-
-            #Check if equal, greater than, then less
-            if self.reg[reg_a] == self.reg[reg_b]:
-                self.fl[self.equal] = 1
-            elif self.reg[reg_a] > self.reg[reg_b]:
-                self.fl[self.greater_than] = 1
-            else:
-                self.fl[self.less_than] = 1
-
-            self.pc += 3
+        # elif op == "SUB": etc
         else:
             raise Exception("Unsupported ALU operation")
-
-    def ram_read(self, address):
-        print(self.ram[address])
-
-    def ram_write(self, address, instruction):
-        self.ram[address] = instruction
-
-    def load(self, file):
-        """Load a program into memory."""
-
-        address = 0
-
-        program = []
-
-        #whole file
-        f = open(file)
-        list_of_lines = f.read().split("\n")
-
-        for line in list_of_lines:
-            sliced_string = line[:8]
-            if re.search(r"[0-1]{8}", sliced_string) is not None:
-                program.append(int(sliced_string, 2))
-
-        for instruction in program:
-            self.ram_write(address, instruction)
-            address += 1
-
-        f.close()
 
     def trace(self):
         """
@@ -214,8 +84,8 @@ class CPU:
 
         print(f"TRACE: %02X | %02X %02X %02X |" % (
             self.pc,
-            self.fl,
-            #self.ie,
+            # self.fl,
+            # self.ie,
             self.ram_read(self.pc),
             self.ram_read(self.pc + 1),
             self.ram_read(self.pc + 2)
@@ -227,10 +97,66 @@ class CPU:
         print()
 
     def run(self):
-        while not self.halted:
-            instruction = self.ram[self.pc]
-            if instruction in self.instructions:
-                self.instructions[instruction]()
-            else:
-                print(f"Unknown instruction at index {self.pc}")
-                sys.exit(1)
+        """Run the CPU."""
+        while True:
+            ir = self.ram_read(self.pc)
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+            operand_count = ir >> 6
+            instruction_length = operand_count + 1
+
+            set_pc = ir >> 4 & 0b0001
+            self.branch_table[ir](operand_a, operand_b)
+
+            if not set_pc:
+                self.pc += instruction_length
+
+    def LDI(self, reg_num, value):
+        self.reg[reg_num] = value
+
+    def PRN(self, reg_num, _):
+        print(self.reg[reg_num])
+
+    def HLT(self, *_):
+        sys.exit()
+
+    def POP(self, reg_num, _):
+        value = self.ram_read(self.reg[SP])
+        self.reg[reg_num] = value
+        self.reg[SP] += 1
+
+    def PUSH(self, reg_num, _):
+        value = self.reg[reg_num]
+        self.reg[SP] -= 1
+        self.ram_write(value, self.reg[SP])
+
+    def ALU_MUL(self, reg_a, reg_b):
+        self.reg[reg_a] *= self.reg[reg_b]
+
+    def ALU_ADD(self, reg_a, reg_b):
+        self.reg[reg_a] += self.reg[reg_b]
+
+    def CALL(self, reg_num, _):
+        self.reg[SP] -= 1
+        return_address = self.pc + 2
+        self.ram_write(return_address, self.reg[SP])
+        self.pc = self.reg[reg_num]
+
+    def RET(self, *_):
+        self.pc = self.ram_read(self.reg[SP])
+        self.reg[SP] += 1
+
+    # def JMP(self, reg_num, _):
+    #     self.pc = self.reg[reg_num]
+
+    # def JNE(self, reg_num, _):
+    #     if self.fl & 1 == 0:
+    #         self.JMP(reg_num, _)
+    #     else:
+    #         self.pc += 2
+
+    # def JEQ(self, reg_num, _):
+    #     if self.fl & 1:
+    #         self.JMP(reg_num, _)
+    #     else:
+    #         self.pc += 2
