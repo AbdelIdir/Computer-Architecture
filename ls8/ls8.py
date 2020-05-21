@@ -6,7 +6,7 @@ import sys
 from cpu import *
 
 if len(sys.argv) != 2:
-    print('Usage: ls8.py filename ,check')
+    print('check ls8.py')
     sys.exit(1)
 
 cpu = CPU()
