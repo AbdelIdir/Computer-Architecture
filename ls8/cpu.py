@@ -39,7 +39,7 @@ class CPU:
             CALL: self.CALL,
             RET: self.RET,
             ADD: self.ALU_ADD
-          
+
         }
 
     def ram_read(self, mar):
@@ -82,8 +82,8 @@ class CPU:
 
         print(f"TRACE: %02X | %02X %02X %02X |" % (
             self.pc,
-            # self.fl,
-            # self.ie,
+
+
             self.ram_read(self.pc),
             self.ram_read(self.pc + 1),
             self.ram_read(self.pc + 2)
